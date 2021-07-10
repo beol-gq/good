@@ -1,0 +1,108 @@
+#include "WiFiEsp.h"
+
+#include <SoftwareSerial.h> 
+#define rxPin 3 
+#define txPin 2 
+SoftwareSerial esp01(txPin, rxPin); // SoftwareSerial NAME(TX, RX);
+int tmx = 0;
+int tem[2];
+int temp = 0;
+int weather;
+int seq = 0;
+int count3 = 0;
+int zero = -1;
+int i = 0 ;
+
+char ssid[] = "beolgq";            // your network SSID (name)
+char pass[] = "12345678";        // your network password
+int status = WL_IDLE_STATUS;     // the Wifi radio's status
+
+// http://www.kma.go.kr/wid/queryDFSRSS.jsp?zone=4617039000
+const char* host = "www.kma.go.kr";
+const String url = "/wid/queryDFSRSS.jsp?zone=4617039000";
+
+// Initialize the Ethernet client object
+WiFiEspClient client;
+
+void setup() {
+  Serial.begin(9600);  //시리얼모니터
+  esp01.begin(9600);   //와이파이 시리얼
+  WiFi.init(&esp01);   // initialize ESP module
+  while ( status != WL_CONNECTED) {   // attempt to connect to WiFi network
+    Serial.print("Attempting to connect to WPA SSID: ");
+    Serial.println(ssid);
+    status = WiFi.begin(ssid, pass);    // Connect to WPA/WPA2 network
+  }
+  Serial.println("You're connected to the network");
+  printWifiStatus(); // wifi 상태표시 및 딜레이
+  Serial.println();
+  Serial.println("Starting connection to server...");
+  if (client.connect(host, 80)) {
+    Serial.println("Connected to server");
+    client.print("GET /wid/queryDFSRSS.jsp?zone=4617039000 HTTP/1.1\r\nHost: www.kma.go.kr\r\nConnection: close\r\n\r\n");
+  }
+}
+
+void loop() {
+  while (client.available()) {
+    char c = client.read();
+    
+    if (c == 's') {
+      seq++;
+    } else if (c == 'e') {
+      seq++;
+    } else if (c == 'q') {
+      seq++;
+    } else if (c == '=') {
+      seq++;
+    } else if (c == '"') {
+      seq++;
+    } else if (c == '0' && seq == 5) {
+      zero = (int)(c-48);
+    } else {
+      seq = 0;
+    }
+
+    if (zero == 0 && c == 't') {
+      tmx++;
+    } else if (zero == 0 && c == 'm') {
+      tmx++;
+    } else if (zero == 0 && c == 'x') {
+      tmx++;
+    } else if (zero == 0 && c == '>') {
+      tmx++;
+    } else if (zero == 0 && c >= '0' && c <= '9' && tmx == 4) {
+      tem[i]=(int)(c-48);
+      i++;
+    } else {
+      i = 0;
+      tmx = 0;
+    }
+  }
+  if (!client.connected()) {
+    Serial.println();
+    Serial.println(tem[0]);
+    Serial.println(tem[1]);
+
+    temp += tem[0]*10;
+    temp += tem[1];
+
+    weather = temp;
+    Serial.println("Disconnecting from server...");
+    Serial.print(temp);
+    client.stop();
+    while (true); // do nothing forevermore
+  }
+}
+
+void printWifiStatus() {
+  Serial.print("SSID: ");   // print the SSID of the network you're attached to
+  Serial.println(WiFi.SSID());
+  IPAddress ip = WiFi.localIP();  // print your WiFi shield's IP address
+  Serial.print("IP Address: ");
+  Serial.println(ip);
+  long rssi = WiFi.RSSI();  // print the received signal strength
+  Serial.print("Signal strength (RSSI):");
+  Serial.print(rssi);
+  Serial.println(" dBm");
+}
